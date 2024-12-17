@@ -65,6 +65,15 @@ const App = () => {
         setNotificationMessage(`Added ${newName}`)
         setTimeout(() => setNotificationMessage(null), 5000)
       })
+      .catch(error => {
+        setisAnError(true)
+        setNotificationMessage(`${error.response.data.error}`)
+
+        setTimeout(() => {
+          setisAnError(false)
+          setNotificationMessage(null)
+        }, 5000)
+      })
     console.log('button', e.target)
   }
 
@@ -75,12 +84,19 @@ const App = () => {
         .deletePerson(id)
         .then(() => {
           setPersons(persons.filter(persons => persons.id !== id))
+          setNotificationMessage(
+            `Information of ${person.name} has been removed from server`
+          )
+          setTimeout(() => {
+            setNotificationMessage(null)
+            setisAnError(false)
+          }, 5000)
         })
         .catch(err => {
           console.log(err)
           setisAnError(true)
           setNotificationMessage(
-            `Information of ${person.name} has alreday been ermoved from server`
+            `Information of ${person.name} has alreday been removed from server`
           )
           setTimeout(() => {
             setNotificationMessage(null)
