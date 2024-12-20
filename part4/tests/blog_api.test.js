@@ -9,6 +9,7 @@ const bcrypt = require('bcrypt')
 
 const Blog = require('../models/blog')
 const User = require('../models/user')
+const jwt = require('jsonwebtoken')
 
 beforeEach(async () => {
     await Blog.deleteMany({})
@@ -39,16 +40,35 @@ describe('when there is initially some blogs saved', () => {
 })
 
 describe('posting blogs', ()=> {
+    let loginUser
+    
+    beforeEach(async () => {
+        const user = {
+            username: process.env.USERNAMETEST,
+            password: process.env.PASSWORDTEST
+        }
+        
+        loginUser = await api
+            .post('/api/login')
+            .send(user)
+    })
+
     test('a new valid blog is added', async () => {
         const newBlog = {
             title: 'testBlog',
             author: 'test',
             url: 'test',
-            likes: 0
+            likes: 0,
+            userId: process.env.IDTEST
         }
+
+        console.log('--------------------')
+        console.log(newBlog.userId)
+        console.log('--------------------')
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${loginUser.body.token}`)
             .send(newBlog)
             .expect(201)
             .expect('Content-Type', /application\/json/)
@@ -64,11 +84,13 @@ describe('posting blogs', ()=> {
         const newBlog = {
             title: 'testBlog',
             author: 'test',
-            url: 'test'
+            url: 'test',
+            userId: process.env.IDTEST
         }
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${loginUser.body.token}`)
             .send(newBlog)
             .expect(201)
             .expect('Content-Type', /application\/json/)
@@ -80,19 +102,23 @@ describe('posting blogs', ()=> {
     test('blog without title or url send a 400 bad request', async () => {
         const blogWithoutTittle = {
             url: 'test',
+            userId: process.env.IDTEST
         }
 
         await api
             .post('/api/blogs')
+            .set('Authorization', `Bearer ${loginUser.body.token}`)
             .send(blogWithoutTittle)
             .expect(400)
 
             const blogWithoutUrl = {
                 title: 'test',
+                userId: process.env.IDTEST
             }
     
             await api
                 .post('/api/blogs')
+                .set('Authorization', `Bearer ${loginUser.body.token}`)
                 .send(blogWithoutUrl)
                 .expect(400)
 
@@ -128,7 +154,8 @@ describe('updating blogs info', () => {
             title: blogToUpdate.title,
             author: blogToUpdate.author,
             url: blogToUpdate.url,
-            likes: 99999
+            likes: 99999,
+            userId: process.env.IDTEST
         }
 
         await api
@@ -148,36 +175,83 @@ describe('updating blogs info', () => {
     }
 })
 
-describe.only('when there is initially one user in db', () => {
-    beforeEach(async () => {
-        await User.deleteMany({})
-
-        const passwordHash = await bcrypt.hash('sekret', 10)
-        const user = new User({ username: 'root', passwordHash})
-
-        await user.save()
-    })
-
+describe('when there is initially one user in db', () => {
     test('creation succeds with a fresh username', async () => {
-        const userAtStart = await helper.usersInDb()
+        const usersAtStart = await helper.usersInDb()
 
         const newUser = {
-            username: 'testUser',
+            username: 'newTestUser',
             name: 'User Test',
             password: 'password',
         }
 
-        await api
+        const response = await api
             .post('/api/users')
             .send(newUser)
             .expect(201)
             .expect('Content-Type', /application\/json/)
 
         const usersAtEnd = await helper.usersInDb()
-        assert.strictEqual(usersAtEnd.length, userAtStart + 1)
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length + 1)
 
         const usernames = usersAtEnd.map(u => u.username)
-        assert(usernames.includse(newUser.username))
+        assert(usernames.includes(newUser.username))
+
+        await api.delete(`/api/users/${response.body.id}`).expect(204)
+    })
+})
+
+describe('creating not valid users', () => {
+    test('creation users without username', async () => {
+        const usersAtStart = await helper.usersInDb()
+
+        const newUser = {
+            name: 'NameTest',
+            password: 'passwordTest'
+        }
+        
+        await api
+            .post('/api/users')
+            .send(newUser)
+            .expect(400)
+        const usersAtEnd = await helper.usersInDb()
+
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length)
+    })
+
+    test('creation users without password', async () => {
+        const usersAtStart = await helper.usersInDb()
+
+        const newUser = {
+            name: 'NameTest',
+            username: 'userNameTest'
+        }
+        
+        await api
+            .post('/api/users')
+            .send(newUser)
+            .expect(400)
+        const usersAtEnd = await helper.usersInDb()
+
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length)
+    })
+
+    test('creation users with less than 3 characters name', async () => {
+        const usersAtStart = await helper.usersInDb()
+
+        const newUser = {
+            name: 'NameTest',
+            userName: 'te',
+            password: 'passwordTest'
+        }
+        
+        await api
+            .post('/api/users')
+            .send(newUser)
+            .expect(400)
+        const usersAtEnd = await helper.usersInDb()
+
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length)
     })
 })
 
